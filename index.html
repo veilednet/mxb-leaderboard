@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="refresh" content="30">
+<title>Lap Leaderboard</title>
+<style>
+  :root {
+    --bg: #0e0f11; --panel: #17191c; --line: #2a2d32; --text: #e9e7e2;
+    --dim: #8d9096; --accent: #f2a20c; --gold: #f2c14e; --silver: #c9ccd1; --bronze: #c98a52;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 "Segoe UI", system-ui, sans-serif; }
+  header { padding: 28px 32px 18px; border-bottom: 1px solid var(--line);
+           display: flex; flex-wrap: wrap; gap: 16px 32px; align-items: end; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: .02em; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--dim); font-size: 13px; margin-top: 4px; }
+  .controls { margin-left: auto; display: flex; gap: 18px; align-items: center; font-size: 14px; }
+  select { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+           border-radius: 6px; padding: 6px 10px; font: inherit; }
+  label { color: var(--dim); display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  main { padding: 24px 32px 48px; display: grid; gap: 28px; max-width: 1100px; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .track { padding: 16px 20px; border-bottom: 1px solid var(--line);
+           display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .track h2 { margin: 0; font-size: 19px; }
+  .track .meta { color: var(--dim); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; color: var(--dim); font-weight: 600; font-size: 12px;
+       text-transform: uppercase; letter-spacing: .06em; padding: 10px 20px; }
+  td { padding: 11px 20px; border-top: 1px solid var(--line); }
+  td.pos { width: 52px; font-weight: 700; color: var(--dim); }
+  tr:nth-child(1) td.pos { color: var(--gold); }
+  tr:nth-child(2) td.pos { color: var(--silver); }
+  tr:nth-child(3) td.pos { color: var(--bronze); }
+  td.time { font-family: Consolas, "Cascadia Mono", monospace; font-size: 16px; font-weight: 600; }
+  td.gap { font-family: Consolas, monospace; color: var(--dim); }
+  td.bike { color: var(--text); }
+  .cat { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;
+         border: 1px solid var(--line); color: var(--dim); font-size: 12px; }
+  td.when, td.laps { color: var(--dim); font-size: 13px; }
+  .empty { padding: 60px 32px; color: var(--dim); }
+  @media (max-width: 700px) {
+    header, main { padding-left: 14px; padding-right: 14px; }
+    th, td { padding-left: 10px; padding-right: 10px; }
+    .hide-sm { display: none; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>Lap <span>Leaderboard</span></h1>
+    <div class="sub">NY BikeLife &middot; updated Nov 06, 06:24 PM</div>
+  </div>
+  <div class="controls">
+    <select id="cat"><option value="">All classes</option></select>
+    <label><input type="checkbox" id="perbike"> Best per bike</label>
+  </div>
+</header>
+<main id="boards"></main>
+<script>
+const DATA = [{"track": "HM | Swedish Midsummer Carnage 2", "last": "2026-11-06T18:19:29", "laps": 4, "rows": [{"rider": "M4CX", "guid": "be6c462bc5", "bike": "Yamaha YZ450F 2023", "category": "MX1 OEM", "best": 65482, "when": "2026-11-06T17:12:55", "laps": 4}]}];
+const fmt = ms => { const m = Math.floor(ms / 60000), s = ms % 60000;
+  return m + ":" + String(Math.floor(s / 1000)).padStart(2, "0") + "." + String(s % 1000).padStart(3, "0"); };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const day = iso => iso ? new Date(iso).toLocaleDateString(undefined, {month: "short", day: "numeric"}) : "";
+const catSel = document.getElementById("cat"), perBike = document.getElementById("perbike");
+const cats = [...new Set(DATA.flatMap(t => t.rows.map(r => r.category)).filter(Boolean))].sort();
+cats.forEach(c => catSel.add(new Option(c, c)));
+catSel.value = localStorage.getItem("lb_cat") || "";
+perBike.checked = localStorage.getItem("lb_perbike") === "1";
+function render() {
+  localStorage.setItem("lb_cat", catSel.value);
+  localStorage.setItem("lb_perbike", perBike.checked ? "1" : "0");
+  const root = document.getElementById("boards");
+  if (!DATA.length) { root.innerHTML = '<div class="empty">No laps recorded yet. Ride a lap on the server with the logger running.</div>'; return; }
+  root.innerHTML = DATA.map(t => {
+    let rows = t.rows.filter(r => !catSel.value || r.category === catSel.value);
+    if (!perBike.checked) { const seen = new Set(); rows = rows.filter(r => !seen.has(r.guid) && seen.add(r.guid)); }
+    if (!rows.length) return "";
+    const best = rows[0].best;
+    return `<section><div class="track"><h2>${esc(t.track)}</h2>
+      <div class="meta">${t.laps} valid lap${t.laps === 1 ? "" : "s"} &middot; last ridden ${day(t.last)}</div></div>
+      <table><thead><tr><th>Pos</th><th>Rider</th><th>Best lap</th><th class="hide-sm">Gap</th><th>Bike</th>
+      <th class="hide-sm">Laps</th><th class="hide-sm">Set</th></tr></thead><tbody>
+      ${rows.map((r, i) => `<tr><td class="pos">${i + 1}</td><td>${esc(r.rider)}</td>
+        <td class="time">${fmt(r.best)}</td><td class="gap hide-sm">${i ? "+" + (((r.best - best) / 1000).toFixed(3)) : ""}</td>
+        <td class="bike">${esc(r.bike)}${r.category ? `<span class="cat">${esc(r.category)}</span>` : ""}</td>
+        <td class="laps hide-sm">${r.laps}</td><td class="when hide-sm">${day(r.when)}</td></tr>`).join("")}
+      </tbody></table></section>`;
+  }).join("") || '<div class="empty">No laps in this class yet.</div>';
+}
+catSel.onchange = perBike.onchange = render;
+render();
+</script>
+</body>
+</html>
